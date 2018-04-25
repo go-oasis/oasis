@@ -7,6 +7,49 @@ import (
 	"net/url"
 )
 
+// ResponseEncoder is the interface for handling
+// the Responder output and output error.
+type ResponseEncoder interface {
+	EncodeResponse(http.ResponseWriter, Responder)
+}
+
+// NewResponseEncoder returns the default ResponseEncoder
+// implementation.
+func NewResponseEncoder() ResponseEncoder {
+	return defaultResponseEncoder(0)
+}
+
+type defaultResponseEncoder int
+
+func (encoder defaultResponseEncoder) EncodeResponse(w http.ResponseWriter, rspr Responder) {
+	err := rspr.ResponseTo(w)
+
+	// if there is a ResponderError, handle the output
+	if rsprErr, ok := err.(ResponderError); ok {
+		w.Header().Add("Content-Type", "text/html;charset=utf-8")
+		w.WriteHeader(rsprErr.Code())
+		fmt.Fprintf(w,
+			`<!DOCTYPE html>
+<html>
+<head>
+<title>%s</title>
+</head>
+<body>
+<h1>%s</h1>
+<p><strong>%s</strong></p>
+<p>%s</p>
+</body>
+</html>`,
+			http.StatusText(rsprErr.Code()),
+			http.StatusText(rsprErr.Code()),
+			rsprErr.Message(),
+			rsprErr.Error(),
+		)
+	}
+
+	// TODO: log error
+}
+
 // Responder represents a common interface to
 // cache an http response.
 //
