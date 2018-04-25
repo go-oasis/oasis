@@ -100,6 +100,10 @@ type AuthorizeRequest struct {
 	// Stage. Library specific parameter to determine
 	// the authorization stage.
 	Stage AuthorizeStage `json:"stage,omitempty"`
+
+	// UserID. Library specific parameter to store
+	// the id of successfully authenticated user.
+	UserID string `json:"user_id,omitempty"`
 }
 
 // AuthorizeDecoder decodes an http request as
@@ -158,5 +162,87 @@ func NewAuthorizeDecoder(allowedResponseTypes ...string) AuthorizeDecoder {
 	}
 	return &DefaultAuthorizeDecoder{
 		allowedResponseTypes: allowedResponseTypesMap,
+	}
+}
+
+// AuthorizeHandler handles the Authorization Request.
+//
+// In RFC, the final response can either be an
+// Authorization Response (for Authorization Grant),
+// a Token Response (for Implicit Grant), or an
+// Error Response. But in all these cases, the
+// response is a URL redirection (i.e. RedirectResponse
+// in this library)
+//
+// In practice, to process an authorization request,
+// an authorization server would usually prompt
+// intermediate user interface, includes and not
+// limited to:
+//
+// 1. Login interface.
+// 2. TOTP / MFA interface.
+// 3. Scope review and authorization interface.
+// 4. Prompt user for missing / invalid client identifier.
+//
+// In those cases, a ResponseCache would be used.
+type AuthorizeHandler interface {
+	HandleAuthorizeRequest(
+		ctx context.Context,
+		ar *AuthorizeRequest,
+		decodeErr error,
+	) (rd Responder)
+}
+
+// AuthorizeHandlerFunc is an adaptor to allow the use of ordinary
+// functions as AuthorizeHandler.
+type AuthorizeHandlerFunc func(
+	ctx context.Context,
+	ar *AuthorizeRequest,
+	decodeErr error,
+) (rd Responder)
+
+// HandleAuthorizeRequest implements AuthorizeHandler
+func (f AuthorizeHandlerFunc) HandleAuthorizeRequest(ctx context.Context, ar *AuthorizeRequest, decodeErr error) Responder {
+	return f(ctx, ar, decodeErr)
+}
+
+// AuthorizeHandlerMux route different stage of AuthorizeRequest
+// to different AuthorizeHandler.
+type AuthorizeHandlerMux struct {
+	handlers map[AuthorizeStage]AuthorizeHandler
+}
+
+// NewAuthorizeHandlerMux returns an initialized *AuthorizeHandlerMux
+func NewAuthorizeHandlerMux() *AuthorizeHandlerMux {
+	return &AuthorizeHandlerMux{
+		handlers: make(map[AuthorizeStage]AuthorizeHandler),
+	}
+}
+
+// Add a handler to handle specific stage.
+//
+// If 2 handlers are added to the same stage, the later one will
+// overwrite the former one.
+func (mux *AuthorizeHandlerMux) Add(stage AuthorizeStage, handler AuthorizeHandler) {
+	mux.handlers[stage] = handler
+}
+
+// AddFunc add a function, as handler, to handle specific stage.
+//
+// If 2 handlers are added to the same stage, the later one will
+// overwrite the former one.
+func (mux *AuthorizeHandlerMux) AddFunc(stage AuthorizeStage, handler AuthorizeHandlerFunc) {
+	mux.handlers[stage] = handler
+}
+
+// HandleAuthorizeRequest implements AuthorizeRequestHandler
+func (mux *AuthorizeHandlerMux) HandleAuthorizeRequest(ctx context.Context, ar *AuthorizeRequest, decodeErr error) (rd Responder) {
+	if handler, ok := mux.handlers[ar.Stage]; ok {
+		return handler.HandleAuthorizeRequest(ctx, ar, decodeErr)
+	}
+	return &ResponseCache{
+		Code:        http.StatusInternalServerError,
+		HeaderCache: make(http.Header),
+		Body:        strings.NewReader(http.StatusText(http.StatusInternalServerError)),
 	}
 }

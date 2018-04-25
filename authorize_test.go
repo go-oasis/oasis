@@ -1,6 +1,7 @@
 package oasis_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -138,5 +139,54 @@ func TestAuthorizeDecoder_DecodeAuthorize(t *testing.T) {
 				t.Errorf("\nexpected: %#v\ngot:      %#v", want, have)
 			}
 		}
+	}
+}
+
+func TestAuthorizeHandlerMux(t *testing.T) {
+	var auth oasis.AuthorizeHandler
+	var flag1, flag2 bool
+
+	mux := oasis.NewAuthorizeHandlerMux()
+	mux.AddFunc(oasis.StageInitialize, func(
+		ctx context.Context,
+		ar *oasis.AuthorizeRequest,
+		decodeErr error,
+	) (rd oasis.Responder) {
+		if want, have := "hello-client-1", ar.ClientID; want != have {
+			t.Errorf("expected %#v, got %#v", want, have)
+		}
+		flag1 = true
+		return
+	})
+	mux.AddFunc(oasis.StageToAuthorize, func(
+		ctx context.Context,
+		ar *oasis.AuthorizeRequest,
+		decodeErr error,
+	) (rd oasis.Responder) {
+		if want, have := "hello-client-2", ar.ClientID; want != have {
+			t.Errorf("expected %#v, got %#v", want, have)
+		}
+		flag2 = true
+		return
+	})
+
+	// ensure mux implements oasis.AuthorizeHandler
+	auth = mux
+
+	// test handler 1
+	auth.HandleAuthorizeRequest(nil, &oasis.AuthorizeRequest{
+		ClientID: "hello-client-1",
+	}, nil)
+	if want, have := true, flag1; want != have {
+		t.Errorf("expected handler 1 to be run. not run")
+	}
+
+	// test handler 2
+	auth.HandleAuthorizeRequest(nil, &oasis.AuthorizeRequest{
+		Stage:    oasis.StageToAuthorize,
+		ClientID: "hello-client-2",
+	}, nil)
+	if want, have := true, flag2; want != have {
+		t.Errorf("expected handler 2 to be run. not run")
 	}
 }
