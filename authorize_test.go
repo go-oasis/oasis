@@ -114,7 +114,7 @@ func TestAuthorizeDecoder_DecodeAuthorize(t *testing.T) {
 			nil,
 		)
 
-		ar, err := test.decoder.DecodeAuthorize(r)
+		_, ar, err := test.decoder.DecodeAuthorize(r)
 		if test.expected != nil {
 			ar.HTTPRequest = nil // no need to test the raw request
 			if ar == nil {

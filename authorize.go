@@ -1,6 +1,7 @@
 package oasis
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,26 +10,51 @@ import (
 // AuthorizeStage represents the stage of process
 // of this request.
 //
-// Value 0, 1 and 2 is pre-allocated to some preset
-// stages. You are recommended to use numbers above
+// Value 0-99 are reserved to preset stages.
+// You are recommended to use numbers above
 // 100 for your custom stages.
 type AuthorizeStage int
 
 const (
-	// StageToAuthenticate is the default stage of
+	// StageInitialize is the default stage of
 	// all AuthorizeRequest. It represents when
 	// an AuthorizeRequest is just arrived.
 	//
 	// User is about to enter whatever login
 	// information
-	StageToAuthenticate AuthorizeStage = iota
+	StageInitialize AuthorizeStage = iota
+
+	// StageToAuthenticate represents when
+	// an AuthorizeRequest is passed along
+	// side with the login information
+	// (i.e. submitted login form).
+	//
+	// If the authentication is success,
+	// the AuthorizeRequest should jump
+	// to StageToAuthorize.
+	StageToAuthenticate
+
+	// StageIntermediate represents an arbitrary
+	// intermediate stage between StageToAuthenticate
+	// and StageToAuthorize.
+	//
+	// That means user has login successfully but
+	// has not yet authorize the given scope.
+	StageIntermediate
 
 	// StageToAuthorize represents when an
-	// AuthorizeRequest has past authentication
-	// stage.
+	// AuthorizeRequest is passed along side
+	// with the authorization confirmation
+	// (i.e. submitted confirmation of the
+	// access scope).
 	//
-	// User is about to authorize the scope.
+	// If the authorization is success,
+	// the
 	StageToAuthorize
+
+	// StageCustom represents an arbitrary
+	// custom stage.
+	StageCustom
 )
 
 // AuthorizeRequest represents an Authorization Request for either the
@@ -79,7 +105,7 @@ type AuthorizeRequest struct {
 // AuthorizeDecoder decodes an http request as
 // an AuthorizeRequest.
 type AuthorizeDecoder interface {
-	DecodeAuthorize(*http.Request) (*AuthorizeRequest, error)
+	DecodeAuthorize(*http.Request) (context.Context, *AuthorizeRequest, error)
 }
 
 // DefaultAuthorizeDecoder is the default AuthorizeDecoder implementation.
@@ -95,7 +121,13 @@ type DefaultAuthorizeDecoder struct {
 //
 // An *AuthorizeRequest is always returned even if
 // there is an error.
-func (ad *DefaultAuthorizeDecoder) DecodeAuthorize(r *http.Request) (ar *AuthorizeRequest, err error) {
+func (ad *DefaultAuthorizeDecoder) DecodeAuthorize(r *http.Request) (ctx context.Context, ar *AuthorizeRequest, err error) {
+
+	// inherit the context from request
+	ctx = r.Context()
+
+	// construct authorize request as specified
+	// in RFC.
 	ar = &AuthorizeRequest{
 		ResponseType: strings.Trim(r.URL.Query().Get("response_type"), "\r\n\t "),
 		ClientID:     strings.Trim(r.URL.Query().Get("client_id"), "\r\n\t "),
@@ -114,8 +146,11 @@ func (ad *DefaultAuthorizeDecoder) DecodeAuthorize(r *http.Request) (ar *Authori
 	return
 }
 
-// NewAuthorizeDecoder returns AuthorizeDecoder limiting response_type
-// to the allowedResponseTypes.
+// NewAuthorizeDecoder returns the default AuthorizeDecoder implementation
+// which:
+//
+// 1. limits response_type to the allowedResponseTypes,
+// 2. use the http.Request's context (i.e. `r.Context()` as context return).
 func NewAuthorizeDecoder(allowedResponseTypes ...string) AuthorizeDecoder {
 	allowedResponseTypesMap := make(map[string]bool)
 	for _, responseType := range allowedResponseTypes {
