@@ -6,6 +6,31 @@ import (
 	"strings"
 )
 
+// AuthorizeStage represents the stage of process
+// of this request.
+//
+// Value 0, 1 and 2 is pre-allocated to some preset
+// stages. You are recommended to use numbers above
+// 100 for your custom stages.
+type AuthorizeStage int
+
+const (
+	// StageToAuthenticate is the default stage of
+	// all AuthorizeRequest. It represents when
+	// an AuthorizeRequest is just arrived.
+	//
+	// User is about to enter whatever login
+	// information
+	StageToAuthenticate AuthorizeStage = iota
+
+	// StageToAuthorize represents when an
+	// AuthorizeRequest has past authentication
+	// stage.
+	//
+	// User is about to authorize the scope.
+	StageToAuthorize
+)
+
 // AuthorizeRequest represents an Authorization Request for either the
 // Authorization Code Grant (as described in RFC6749 section 4.1.1),
 // or the Implicit Grant (as described in RFC6749 section 4.2.1).
@@ -19,7 +44,7 @@ type AuthorizeRequest struct {
 
 	// HTTPRequest is the raw http.Request that this
 	// AuthorizeRequest is constructed from, if any.
-	HTTPRequest *http.Request
+	HTTPRequest *http.Request `json:"-"`
 
 	// ResponseType. REQUIRED.  Value MUST be set to "code" or "token".
 	ResponseType string `json:"response_type"`
@@ -31,11 +56,11 @@ type AuthorizeRequest struct {
 
 	// RedirectURI. OPTIONAL. Absolute URI for authorization server
 	// as described by RFC6749 section 3.1.2
-	RedirectURI string `json:"redirect_uri"`
+	RedirectURI string `json:"redirect_uri,omitempty"`
 
 	// Scope. OPTIONAL. The scope of access request as described by
 	// RFC6749 section 3.3
-	Scope string `json:"scope"`
+	Scope string `json:"scope,omitempty"`
 
 	// State. RECOMMENDED. An opaque value used by the client to
 	// maintain state between the request and callback.
@@ -44,7 +69,11 @@ type AuthorizeRequest struct {
 	// the user-agent back to the client. The parameter SHOULD be
 	// used for preventing cross-site request forgery as described
 	// in RFC6749 Section 10.12.
-	State string `json:"state"`
+	State string `json:"state,omitempty"`
+
+	// Stage. Library specific parameter to determine
+	// the authorization stage.
+	Stage AuthorizeStage `json:"stage,omitempty"`
 }
 
 // AuthorizeDecoder decodes an http request as

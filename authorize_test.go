@@ -1,6 +1,8 @@
 package oasis_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"testing"
@@ -8,7 +10,23 @@ import (
 	"github.com/go-oasis/oasis"
 )
 
-func TestAuthorzeDecoder_DecodeAuthorize(t *testing.T) {
+func TestAuthorizeRequest(t *testing.T) {
+	var ar *oasis.AuthorizeRequest
+	var content []byte
+
+	ar = &oasis.AuthorizeRequest{}
+	content, _ = json.Marshal(ar)
+	if want, have := `{"response_type":"","client_id":""}`, fmt.Sprintf("%s", content); want != have {
+		t.Errorf("\nexpected: %s\ngot:      %s", want, have)
+	}
+
+	ar = &oasis.AuthorizeRequest{Stage: 1}
+	content, _ = json.Marshal(ar)
+	if want, have := `{"response_type":"","client_id":"","stage":1}`, fmt.Sprintf("%s", content); want != have {
+		t.Errorf("\nexpected: %s\ngot:      %s", want, have)
+	}
+}
+func TestAuthorizeDecoder_DecodeAuthorize(t *testing.T) {
 	tests := []struct {
 		decoderDesc   string
 		decoder       oasis.AuthorizeDecoder
