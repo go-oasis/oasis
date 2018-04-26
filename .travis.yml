@@ -9,3 +9,8 @@ go:
 
 script:
   - go test -v -race ./...
+
+after_script:
+  - |
+    # refresh godoc if branch is master
+    if [ "$TRAVIS_BRANCH" == "master" ] && [ "$TRAVIS_EVENT_TYPE" == "push" ]; then curl -X POST -d "path=github.com/go-oasis/oasis" https://godoc.org/-/refresh; fi
