@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/go-oasis/oasis"
@@ -188,5 +191,38 @@ func TestAuthorizeHandlerMux(t *testing.T) {
 	}, nil)
 	if want, have := true, flag2; want != have {
 		t.Errorf("expected handler 2 to be run. not run")
+	}
+}
+
+func TestNewAuthorizeEndpoint(t *testing.T) {
+	u, _ := url.Parse("https://foobar.com/some/authorize/?client_id=dummy-client-abc&response_type=code")
+	r, _ := http.NewRequest("GET", u.String(), nil)
+	log.Printf("%#v", u.String())
+	w := httptest.NewRecorder()
+
+	handler := oasis.NewAuthorizeEndpoint(
+		oasis.Context{},
+		oasis.NewAuthorizeDecoder("code"),
+		oasis.AuthorizeHandlerFunc(func(
+			ctx context.Context,
+			ar *oasis.AuthorizeRequest,
+			decodeErr error,
+		) (rspr oasis.Responder) {
+			rspr = &oasis.ResponseCache{
+				Code:        http.StatusFound,
+				HeaderCache: http.Header{},
+				Body:        strings.NewReader("success: " + ar.ClientID),
+			}
+			return
+		}),
+		oasis.NewResponseEncoder(),
+	)
+
+	handler.ServeHTTP(w, r)
+	if want, have := http.StatusFound, w.Code; want != have {
+		t.Errorf("expected %#v, got %#v", want, have)
+	}
+	if want, have := "success: dummy-client-abc", w.Body.String(); want != have {
+		t.Errorf("\nexpected: %#v\ngot:      %#v", want, have)
 	}
 }

@@ -246,3 +246,19 @@ func (mux *AuthorizeHandlerMux) HandleAuthorizeRequest(ctx context.Context, ar *
 		Body:        strings.NewReader(http.StatusText(http.StatusInternalServerError)),
 	}
 }
+
+// NewAuthorizeEndpoint returns an http.Handler
+// to handle the authorization endpoint.
+func NewAuthorizeEndpoint(
+	actx Context,
+	decoder AuthorizeDecoder,
+	handler AuthorizeHandler,
+	encoder ResponseEncoder,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := WithContext(r.Context(), &actx)
+		ctx, ar, decodeErr := decoder.DecodeAuthorize(r.WithContext(ctx))
+		rspr := handler.HandleAuthorizeRequest(ctx, ar, decodeErr)
+		encoder.EncodeResponse(w, rspr)
+	})
+}
